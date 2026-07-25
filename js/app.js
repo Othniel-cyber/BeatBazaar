@@ -1,9 +1,9 @@
 const P=[
-  {n:'CodeLux Academy',d:'Apprends à coder gratuitement',i:'💻',c:'#a855f7',p:'../CodeLux-Academy/index.html'},
-  {n:'Othniel2TO',d:"Dactylographie - Tape plus vite",i:'⌨️',c:'#6c63ff',p:'../Othniel2TO/index.html'},
-  {n:'PredictX',d:'Pronostics football IA',i:'⚽',c:'#10b981',p:'../PredictX/index.html'},
-  {n:'EduConnect',d:'Plateforme éducative connectée',i:'📚',c:'#f59e0b',p:'../EDUCONNECT/index.html'},
-  {n:'LA MANNE DE VIE',d:'Église chrétienne Porto-Novo',i:'⛪',c:'#C9A84C',p:'../EGLISE/index.html'},
+  {n:'CodeLux Academy',d:'Apprends à coder gratuitement',i:'💻',c:'#a855f7',p:'https://othniel-cyber.github.io/CodeLux-Academy/'},
+  {n:'Othniel2TO',d:"Dactylographie - Tape plus vite",i:'⌨️',c:'#6c63ff',p:'https://othniel-cyber.github.io/Othniel2TO/'},
+  {n:'EduConnect',d:'Plateforme éducative connectée',i:'📚',c:'#f59e0b',p:'https://othniel-cyber.github.io/educonnect/'},
+  {n:'LA MANNE DE VIE',d:'Église chrétienne Porto-Novo',i:'⛪',c:'#C9A84C',p:'https://othniel-cyber.github.io/eglise-manne-de-vie/'},
+  {n:'PredictX',d:'Pronostics football IA',i:'⚽',c:'#10b981',p:'https://othniel-cyber.github.io/PredictX/'},
 ]
 
 const CATEGORIES=[
@@ -86,15 +86,17 @@ a.innerHTML=`<span class="ai">${p.i}</span><div class="ax"><div class="at" style
 
 async function dl(d){const s={id:d.id,title:d.title,artist:d.ar,album:d.al,artUrl:d.a,audioUrl:d.p}
 try{await addSong(s);DI.add(d.id)}catch{}
-let audioData=null;for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){try{const u=p?p+encodeURIComponent(d.p):d.p;const r=await fetch(u,{mode:p?'cors':'cors'});if(r.ok){audioData=await r.blob();break}}catch{}}
-if(audioData&&audioData.size>1000){const name=`${d.ar||'Artiste'} - ${d.title||'Titre'}.mp3`;const url=URL.createObjectURL(audioData);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5e3);t(`✓ "${d.title}" téléchargé sur l'appareil`)}
-else{const name=`${d.ar||'Artiste'} - ${d.title||'Titre'}`;try{const r=await fetch(d.p);const b=await r.blob();const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=name+'.mp3';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5e3);t(`✓ "${d.title}" téléchargé`)}catch{t(`✓ "${d.title}" ajouté à la bibliothèque (lecture offline)`)}}}
+let audioBlob=null;let audioOk=false
+for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){try{const u=p?p+encodeURIComponent(d.p):d.p;const r=await fetch(u,{mode:'cors'});if(r.ok&&(r.headers.get('content-type')||'').startsWith('audio/')){audioBlob=await r.blob();audioOk=true;break}}catch{}}
+if(audioOk&&audioBlob&&audioBlob.size>1000){const name=`${d.ar||'Artiste'} - ${d.title||'Titre'}.mp3`;const url=URL.createObjectURL(audioBlob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5e3);t(`✓ "${d.title}" téléchargé sur l'appareil`)}
+else{try{if('serviceWorker'in navigator&&navigator.serviceWorker.controller){const c=await caches.open('beatbazaar-audio');const r=await fetch(d.p);if(r.ok){c.put(d.p,r);audioOk=true}}}catch{};if(audioOk)t(`✓ "${d.title}" sauvegardé (lecture offline)`);else t(`✓ "${d.title}" ajouté à la bibliothèque (hors ligne disponible après lecture)`)}}
 
 function play(b){const p=b.dataset.p,ti=b.dataset.t,ar=b.dataset.ar,au=b.dataset.a;if(!p){if(b.querySelector)b.querySelector('i').className='fas fa-play';return}
-if(A&&A.src===p){if(A.paused){A.play();if(b.querySelector)b.querySelector('i').className='fas fa-pause';npU(true)}else{A.pause();if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false)}return}
+if(A&&A.src===p){if(A.paused){A.play().catch(()=>{});if(b.querySelector)b.querySelector('i').className='fas fa-pause';npU(true)}else{A.pause();if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false)}return}
 if(A){A.pause();A.currentTime=0;if(PC){const pb=PC.querySelector('.pb,.lb.pb');if(pb)pb.querySelector('i').className='fas fa-play'}}
-A=new Audio(p);PC=b.closest?.('.card,.ls')||null;A.play();if(b.querySelector)b.querySelector('i').className='fas fa-pause';npS(ti,ar,au)
-A.ontimeupdate=()=>{if(A&&_pr){const p=(A.currentTime/A.duration)*100||0;_pr.style.width=p+'%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent=fmt(A.currentTime);t[1].textContent=fmt(A.duration)}}};A.onended=()=>{if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false);_pr.style.width='0%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent='0:00';t[1].textContent='0:00'}}}
+A=new Audio(p);PC=b.closest?.('.card,.ls')||null;A.play().catch(()=>{if(b.querySelector)b.querySelector('i').className='fas fa-play';t('Lecture impossible pour ce titre')});if(b.querySelector)b.querySelector('i').className='fas fa-pause';npS(ti,ar,au)
+A.ontimeupdate=()=>{if(A&&_pr){const p=(A.currentTime/A.duration)*100||0;_pr.style.width=p+'%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent=fmt(A.currentTime);t[1].textContent=fmt(A.duration)}}};A.onended=()=>{if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false);_pr.style.width='0%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent='0:00';t[1].textContent='0:00'}}
+A.onerror=()=>{if(b.querySelector)b.querySelector('i').className='fas fa-play';t('Erreur de lecture. Essaie un autre titre.')}}
 
 function fmt(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0')}
 
@@ -137,11 +139,15 @@ c.querySelector('.pb').onclick=e=>{e.stopPropagation();play({dataset:e.currentTa
 const db=c.querySelector('.db:not(.done)');if(db)db.onclick=async e=>{e.stopPropagation();const b=e.currentTarget;b.innerHTML='<i class="fas fa-spinner fa-spin"></i>';await dl(b.dataset);b.innerHTML='<i class="fas fa-check"></i>';b.classList.add('done');b.disabled=true;b.title='Dans bibliothèque'}
 _tr.appendChild(c)})}
 
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DP=e;[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='flex'})})
-window.addEventListener('appinstalled',()=>{DP=null;[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='none'})})
-async function installApp(){if(!DP)return;DP.prompt();const r=await DP.userChoice;DP=null;if(r.outcome==='accepted'){[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='none'})}}
+const hi=()=>{[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='none'})}
+const si=()=>{[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='flex'})}
+if(window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true)hi()
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DP=e;si()})
+window.addEventListener('appinstalled',()=>{DP=null;hi()})
+async function installApp(){if(!DP)return;DP.prompt();const r=await DP.userChoice;DP=null;hi()}
 $('installHeaderBtn')?.addEventListener('click',installApp);$('installHeroBtn')?.addEventListener('click',installApp);_si?.addEventListener('click',installApp)
 
+if(window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true){_s.style.display='none';_a.style.display='flex'}
 _sb.onclick=()=>{_s.style.display='none';_a.style.display='flex';setTimeout(()=>{if(_sr)_sr.focus()},300)}
 
 function doSearch(input){const v=input.value.trim();if(v){search(v,M);sp('search')}}
