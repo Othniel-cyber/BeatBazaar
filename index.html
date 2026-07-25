@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#a855f7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+  <title>BeatBazaar - Propulsé par CodeLux</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="splash" class="splash">
+    <div class="splash-bg"></div>
+    <div class="splash-content">
+      <div class="splash-logo">♫</div>
+      <h1 class="splash-title">BeatBazaar</h1>
+      <p class="splash-subtitle">Propulsé par <strong>CodeLux</strong></p>
+      <p class="splash-desc">Cherche, télécharge et écoute ta musique préférée, même hors ligne</p>
+      <div class="splash-creators">
+        <p>Créé par</p>
+        <div class="creators-names">
+          <span class="creator-name">Othniel T.</span>
+          <span class="creator-sep">&</span>
+          <span class="creator-name">Ange-Aurel A.</span>
+        </div>
+      </div>
+      <button class="splash-btn" id="splashBtn">
+        <i class="fas fa-arrow-right"></i> Entrer dans BeatBazaar
+      </button>
+      <button class="splash-install-btn" id="splashInstallBtn" style="display:none">
+        <i class="fas fa-download"></i> Installer l'application
+      </button>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <header class="header">
+      <div class="header-brand">
+        <span class="brand-icon">♫</span>
+        <h1>BeatBazaar</h1>
+        <div class="header-right">
+          <button class="install-header-btn" id="installHeaderBtn" title="Installer" style="display:none">
+            <i class="fas fa-download"></i>
+          </button>
+          <span class="brand-by">by <strong>CodeLux</strong></span>
+        </div>
+      </div>
+      <nav class="app-nav" id="appNav">
+        <button class="nav-tab active" data-page="search">
+          <i class="fas fa-search"></i> Rechercher
+        </button>
+        <button class="nav-tab" data-page="library">
+          <i class="fas fa-book"></i> Bibliothèque
+          <span class="lib-badge" id="libBadge">0</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <section class="page active" id="page-search">
+        <div class="hero">
+          <div class="hero-bg"></div>
+          <div class="hero-content">
+            <h2>Des millions de titres à portée de clic</h2>
+            <p>Cherche, télécharge et écoute même hors connexion</p>
+            <form class="search-form" id="searchForm" autocomplete="off">
+              <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input
+                  type="text"
+                  id="searchInput"
+                  class="search-input"
+                  placeholder="Recherche par artiste, chanson ou album..."
+                  autofocus
+                />
+                <button type="submit" class="search-btn">
+                  <i class="fas fa-arrow-right"></i>
+                </button>
+              </div>
+            </form>
+            <div class="search-filters" id="searchFilters">
+              <button class="filter-btn active" data-media="all">Tout</button>
+              <button class="filter-btn" data-media="music">Songs</button>
+              <button class="filter-btn" data-media="album">Albums</button>
+              <button class="filter-btn" data-media="musicArtist">Artistes</button>
+            </div>
+            <button class="install-hero-btn" id="installHeroBtn" style="display:none">
+              <i class="fas fa-download"></i> Installer BeatBazaar
+            </button>
+          </div>
+        </div>
+
+        <div class="codelux-ads" id="codeluxAds">
+          <div class="ads-header">
+            <i class="fas fa-star"></i> Projets <strong>CodeLux</strong>
+          </div>
+          <div class="ads-track" id="adsTrack"></div>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+          <div class="results-header">
+            <div class="results-info">
+              <span id="resultsCount">0</span> résultat(s) pour
+              <span id="resultsQuery" class="query-text"></span>
+            </div>
+            <div class="results-view-options">
+              <button class="view-btn active" data-view="grid" title="Grille">
+                <i class="fas fa-th"></i>
+              </button>
+              <button class="view-btn" data-view="list" title="Liste">
+                <i class="fas fa-list"></i>
+              </button>
+            </div>
+          </div>
+          <div class="results-grid" id="resultsGrid">
+            <div class="empty-state" id="emptyState">
+              <i class="fas fa-music"></i>
+              <p>Cherche une chanson ou un artiste pour commencer</p>
+            </div>
+          </div>
+          <div class="loading-spinner" id="loadingSpinner" style="display: none">
+            <div class="spinner"></div>
+            <p>Recherche en cours...</p>
+          </div>
+          <div class="offline-banner" id="offlineBanner" style="display:none">
+            <i class="fas fa-wifi-slash"></i> Mode hors ligne — seuls les titres téléchargés sont disponibles
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-library">
+        <div class="library-header">
+          <h2><i class="fas fa-book"></i> Ma Bibliothèque</h2>
+          <p>Tes chansons téléchargées, disponibles même sans connexion</p>
+        </div>
+        <div class="library-grid" id="libraryGrid">
+          <div class="empty-state" id="libEmpty">
+            <i class="fas fa-download"></i>
+            <p>Ta bibliothèque est vide. Cherche des chansons et télécharge-les !</p>
+          </div>
+        </div>
+        <div class="library-count" id="libCount"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-content">
+        <p>&copy; 2026 <strong>CodeLux</strong> — BeatBazaar par <strong>Othniel T.</strong> & <strong>Ange-Aurel A.</strong></p>
+        <p class="footer-tagline">Télécharge et écoute même hors ligne</p>
+      </div>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {})
+      })
+    }
+  </script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
