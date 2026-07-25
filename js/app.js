@@ -1,579 +1,173 @@
-const CODELUX_PROJECTS = [
-  { name: 'CodeLux Academy', desc: 'Apprends à coder gratuitement', icon: '💻', color: '#a855f7', path: '../CodeLux-Academy/index.html' },
-  { name: 'Othniel2TO', desc: 'Dactylographie - Tape plus vite !', icon: '⌨️', color: '#6c63ff', path: '../Othniel2TO/index.html' },
-  { name: 'PredictX', desc: 'Pronostics football IA', icon: '⚽', color: '#10b981', path: '../PredictX/index.html' },
-  { name: 'EduConnect', desc: 'Plateforme éducative connectée', icon: '📚', color: '#f59e0b', path: '../EDUCONNECT/index.html' },
-  { name: 'LA MANNE DE VIE', desc: 'Église chrétienne Porto-Novo', icon: '⛪', color: '#C9A84C', path: '../EGLISE/index.html' },
+const P=[
+  {n:'CodeLux Academy',d:'Apprends à coder gratuitement',i:'💻',c:'#a855f7',p:'../CodeLux-Academy/index.html'},
+  {n:'Othniel2TO',d:"Dactylographie - Tape plus vite",i:'⌨️',c:'#6c63ff',p:'../Othniel2TO/index.html'},
+  {n:'PredictX',d:'Pronostics football IA',i:'⚽',c:'#10b981',p:'../PredictX/index.html'},
+  {n:'EduConnect',d:'Plateforme éducative connectée',i:'📚',c:'#f59e0b',p:'../EDUCONNECT/index.html'},
+  {n:'LA MANNE DE VIE',d:'Église chrétienne Porto-Novo',i:'⛪',c:'#C9A84C',p:'../EGLISE/index.html'},
 ]
 
-const CONFIG = {
-  proxies: [
-    '',
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?url=',
-    'https://api.codetabs.com/v1/proxy?quest=',
-  ],
-  itunesApi: 'https://itunes.apple.com/search',
-  limit: 50,
-}
-
-const elements = {
-  splash: document.getElementById('splash'),
-  splashBtn: document.getElementById('splashBtn'),
-  splashInstallBtn: document.getElementById('splashInstallBtn'),
-  app: document.getElementById('app'),
-  searchForm: document.getElementById('searchForm'),
-  searchInput: document.getElementById('searchInput'),
-  resultsGrid: document.getElementById('resultsGrid'),
-  resultsSection: document.getElementById('resultsSection'),
-  resultsCount: document.getElementById('resultsCount'),
-  resultsQuery: document.getElementById('resultsQuery'),
-  emptyState: document.getElementById('emptyState'),
-  loadingSpinner: document.getElementById('loadingSpinner'),
-  offlineBanner: document.getElementById('offlineBanner'),
-  filterBtns: document.querySelectorAll('.filter-btn'),
-  viewBtns: document.querySelectorAll('.view-btn'),
-  nowPlayingBar: document.querySelector('.now-playing-bar'),
-  navTabs: document.querySelectorAll('.nav-tab'),
-  pageSearch: document.getElementById('page-search'),
-  pageLibrary: document.getElementById('page-library'),
-  libraryGrid: document.getElementById('libraryGrid'),
-  libEmpty: document.getElementById('libEmpty'),
-  libBadge: document.getElementById('libBadge'),
-  libCount: document.getElementById('libCount'),
-  adsTrack: document.getElementById('adsTrack'),
-  toast: document.getElementById('toast'),
-}
-
-let currentQuery = ''
-let currentMedia = 'all'
-let currentView = 'grid'
-let currentAudio = null
-let currentPlayingCard = null
-let allResults = []
-let deferredPrompt = null
-let isOnline = navigator.onLine
-let downloadedIds = new Set()
-
-window.addEventListener('online', () => { isOnline = true; updateOnlineStatus() })
-window.addEventListener('offline', () => { isOnline = false; updateOnlineStatus() })
-
-function updateOnlineStatus() {
-  elements.offlineBanner.style.display = isOnline ? 'none' : 'block'
-}
-
-function showToast(msg) {
-  const t = elements.toast
-  t.textContent = msg
-  t.classList.add('show')
-  clearTimeout(t._hide)
-  t._hide = setTimeout(() => t.classList.remove('show'), 2500)
-}
-
-async function loadLibrary() {
-  const songs = await getAllSongs()
-  downloadedIds = new Set(songs.map(s => s.id))
-  renderLibrary(songs)
-}
-
-function renderLibrary(songs) {
-  const grid = elements.libraryGrid
-  const empty = elements.libEmpty
-  const badge = elements.libBadge
-  const count = elements.libCount
-
-  badge.textContent = songs.length
-
-  if (songs.length === 0) {
-    grid.innerHTML = ''
-    grid.appendChild(empty)
-    count.textContent = ''
-    return
-  }
-
-  empty.remove()
-  grid.innerHTML = ''
-  count.textContent = `${songs.length} titre${songs.length > 1 ? 's' : ''} dans ta bibliothèque`
-
-  songs.forEach(song => {
-    const div = document.createElement('div')
-    div.className = 'lib-song'
-    div.innerHTML = `
-      <img class="card-art" src="${song.artUrl || ''}" alt="${escapeHtml(song.title)}" onerror="this.style.display='none'" />
-      <div class="card-info">
-        <div class="card-title">${escapeHtml(song.title)}</div>
-        <div class="card-artist">${escapeHtml(song.artist || '')}</div>
-        <div class="lib-offline-badge"><i class="fas fa-check-circle"></i> Disponible hors ligne</div>
-      </div>
-      <div class="lib-actions">
-        <button class="lib-action-btn lib-play-btn" data-id="${song.id}" data-preview="${escapeHtml(song.audioUrl)}" data-title="${escapeHtml(song.title)}" data-artist="${escapeHtml(song.artist || '')}" data-art="${escapeHtml(song.artUrl || '')}" title="Écouter"><i class="fas fa-play"></i></button>
-        <button class="lib-action-btn lib-del-btn" data-id="${song.id}" title="Supprimer"><i class="fas fa-trash"></i></button>
-      </div>
-    `
-
-    div.querySelector('.lib-play-btn').addEventListener('click', (e) => {
-      e.stopPropagation()
-      const btn = e.currentTarget
-      const previewUrl = btn.dataset.preview
-      if (previewUrl) {
-        const fakeBtn = { dataset: btn.dataset, querySelector: () => null, closest: () => null }
-        fakeBtn.querySelector = (s) => {
-          if (s === 'i') return btn.querySelector('i')
-          return null
-        }
-        playPreview(fakeBtn)
-      }
-    })
-
-    div.querySelector('.lib-del-btn').addEventListener('click', async (e) => {
-      e.stopPropagation()
-      const id = e.currentTarget.dataset.id
-      await removeSong(id)
-      downloadedIds.delete(id)
-      showToast('Titre supprimé de la bibliothèque')
-      loadLibrary()
-    })
-
-    grid.appendChild(div)
-  })
-}
-
-function goToLibrary() {
-  elements.navTabs.forEach(t => t.classList.remove('active'))
-  document.querySelector('[data-page="library"]').classList.add('active')
-  elements.pageSearch.classList.remove('active')
-  elements.pageLibrary.classList.add('active')
-}
-
-function showPage(page) {
-  elements.navTabs.forEach(t => t.classList.remove('active'))
-  document.querySelector(`[data-page="${page}"]`).classList.add('active')
-  elements.pageSearch.classList.toggle('active', page === 'search')
-  elements.pageLibrary.classList.toggle('active', page === 'library')
-  if (page === 'library') loadLibrary()
-}
-
-elements.navTabs.forEach(tab => {
-  tab.addEventListener('click', () => showPage(tab.dataset.page))
-})
-
-async function searchMusic(query, media) {
-  if (!query.trim()) return
-
-  currentQuery = query.trim()
-  currentMedia = media
-
-  elements.resultsGrid.innerHTML = ''
-  elements.emptyState.style.display = 'none'
-
-  if (!isOnline) {
-    elements.loadingSpinner.style.display = 'none'
-    const local = await searchLocalSongs(query)
-    if (local.length > 0) {
-      showEmpty(`Recherche hors ligne : ${local.length} titre(s) trouvé(s) dans ta bibliothèque`)
-      elements.resultsGrid.innerHTML = ''
-      local.forEach(s => elements.resultsGrid.appendChild(createLocalCard(s)))
-      elements.resultsCount.textContent = local.length
-      elements.resultsQuery.textContent = query
-    } else {
-      showEmpty('Hors ligne. Aucun titre trouvé dans ta bibliothèque.')
-    }
-    return
-  }
-
-  elements.loadingSpinner.style.display = 'block'
-
-  const term = encodeURIComponent(query.trim())
-  const searchUrl = `${CONFIG.itunesApi}?term=${term}&media=music&entity=song,album,musicArtist&limit=${CONFIG.limit}`
-
-  let data = null
-
-  for (const proxy of CONFIG.proxies) {
-    const url = proxy ? proxy + encodeURIComponent(searchUrl) : searchUrl
-    data = await tryFetch(url)
-    if (data && data.results) break
-    if (typeof data === 'string') {
-      try { data = JSON.parse(data); if (data && data.results) break } catch {}
-    }
-  }
-
-  elements.loadingSpinner.style.display = 'none'
-
-  if (!data || !data.results || data.resultCount === 0) {
-    showEmpty('Aucun résultat trouvé. Essaie un autre mot-clé.')
-    return
-  }
-
-  allResults = data.results
-  renderResults()
-}
-
-function createLocalCard(song) {
-  const card = document.createElement('div')
-  card.className = 'result-card'
-  card.innerHTML = `
-    <img class="card-art" src="${escapeHtml(song.artUrl || '')}" alt="${escapeHtml(song.title)}" onerror="this.style.display='none'" />
-    <div class="card-info">
-      <div class="card-title">${escapeHtml(song.title)}</div>
-      <div class="card-artist">${escapeHtml(song.artist || '')}</div>
-      <div class="lib-offline-badge"><i class="fas fa-check-circle"></i> Dans ta bibliothèque</div>
-    </div>
-    <div class="card-actions">
-      <button class="action-btn play-btn" data-preview="${escapeHtml(song.audioUrl)}" data-title="${escapeHtml(song.title)}" data-artist="${escapeHtml(song.artist || '')}" data-art="${escapeHtml(song.artUrl || '')}" title="Écouter"><i class="fas fa-play"></i></button>
-    </div>
-  `
-
-  const playBtn = card.querySelector('.play-btn')
-  if (playBtn) {
-    playBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      playPreview(playBtn)
-    })
-  }
-
-  return card
-}
-
-async function tryFetch(url) {
-  try {
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
-  }
-}
-
-function renderResults() {
-  const filtered = allResults.filter(item => {
-    if (currentMedia === 'music' || currentMedia === 'all') {
-      return item.kind === 'song' || item.wrapperType === 'collection' || item.wrapperType === 'artist'
-    }
-    if (currentMedia === 'album') return item.wrapperType === 'collection' || item.collectionType === 'Album'
-    if (currentMedia === 'musicArtist') return item.wrapperType === 'artist'
-    return true
-  })
-
-  elements.resultsCount.textContent = filtered.length
-  elements.resultsQuery.textContent = currentQuery
-
-  if (filtered.length === 0) {
-    showEmpty('Aucun résultat trouvé. Essaie un autre mot-clé.')
-    return
-  }
-
-  elements.emptyState.style.display = 'none'
-  elements.resultsGrid.innerHTML = ''
-  elements.resultsGrid.className = `results-grid ${currentView}`
-
-  let adIndex = 4
-
-  filtered.forEach((item, i) => {
-    if (i > 0 && i % adIndex === 0) {
-      const ad = createInlineAd()
-      if (ad) elements.resultsGrid.appendChild(ad)
-      adIndex = Math.floor(Math.random() * 4) + 3
-    }
-    const card = createCard(item)
-    elements.resultsGrid.appendChild(card)
-  })
-}
-
-function createInlineAd() {
-  if (CODELUX_PROJECTS.length === 0) return null
-  const p = CODELUX_PROJECTS[Math.floor(Math.random() * CODELUX_PROJECTS.length)]
-  const a = document.createElement('a')
-  a.className = 'ad-inline'
-  a.href = p.path
-  a.target = '_top'
-  a.innerHTML = `
-    <span class="ad-icon">${p.icon}</span>
-    <div class="ad-info">
-      <div class="ad-title" style="color:${p.color}">${p.name}</div>
-      <div class="ad-desc">${p.desc}</div>
-    </div>
-    <span class="ad-go">Découvrir <i class="fas fa-arrow-right"></i></span>
-  `
-  return a
-}
-
-function createCard(item) {
-  const isGrid = currentView === 'grid'
-  const card = document.createElement('div')
-  card.className = `result-card ${isGrid ? 'grid-layout' : ''}`
-
-  const isSong = item.kind === 'song'
-  const isAlbum = item.wrapperType === 'collection'
-  const isArtist = item.wrapperType === 'artist'
-  const trackId = String(item.trackId || item.collectionId || item.artistId || '')
-  const artUrl = item.artworkUrl100 || item.artworkUrl60 || ''
-  const title = item.trackName || item.collectionName || item.artistName || 'Inconnu'
-  const artist = isArtist ? '' : (item.artistName || '')
-  const album = isAlbum ? '' : (item.collectionName || '')
-  const previewUrl = item.previewUrl || ''
-  const trackViewUrl = item.trackViewUrl || item.collectionViewUrl || item.artistLinkUrl || ''
-  const typeLabel = isSong ? 'SONG' : isAlbum ? 'ALBUM' : isArtist ? 'ARTISTE' : ''
-  const alreadyDownloaded = downloadedIds.has(trackId)
-
-  card.innerHTML = `
-    ${artUrl
-      ? `<img class="card-art" src="${artUrl}" alt="${title}" loading="lazy" />`
-      : `<div class="card-art-placeholder"><i class="fas fa-music"></i></div>`
-    }
-    <div class="card-info">
-      <div class="card-title">${escapeHtml(title)}</div>
-      ${artist ? `<div class="card-artist">${escapeHtml(artist)}</div>` : ''}
-      ${album ? `<div class="card-album">${escapeHtml(album)}</div>` : ''}
-      <span class="card-type">${typeLabel}</span>
-    </div>
-    <div class="card-actions">
-      ${previewUrl && isSong ? `<button class="action-btn play-btn" data-preview="${previewUrl}" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist || '')}" data-art="${artUrl}" title="Écouter"><i class="fas fa-play"></i></button>` : ''}
-      ${previewUrl && isSong ? `<button class="action-btn dl-btn ${alreadyDownloaded ? 'downloaded' : ''}" data-id="${trackId}" data-preview="${previewUrl}" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist || '')}" data-album="${escapeHtml(album || '')}" data-art="${artUrl}" title="${alreadyDownloaded ? 'Déjà téléchargé' : 'Télécharger'}" ${alreadyDownloaded ? 'disabled' : ''}><i class="fas ${alreadyDownloaded ? 'fa-check' : 'fa-download'}"></i></button>` : ''}
-      ${trackViewUrl ? `<a href="${trackViewUrl}" target="_blank" class="action-btn ext-link-btn" title="Voir sur Apple Music"><i class="fas fa-external-link-alt"></i></a>` : ''}
-    </div>
-  `
-
-  const playBtn = card.querySelector('.play-btn')
-  if (playBtn) {
-    playBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      playPreview(playBtn)
-    })
-  }
-
-  const dlBtn = card.querySelector('.dl-btn')
-  if (dlBtn && !alreadyDownloaded) {
-    dlBtn.addEventListener('click', async (e) => {
-      e.stopPropagation()
-      dlBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'
-      await downloadSong(dlBtn.dataset)
-      dlBtn.innerHTML = '<i class="fas fa-check"></i>'
-      dlBtn.classList.add('downloaded')
-      dlBtn.disabled = true
-      dlBtn.title = 'Déjà téléchargé'
-    })
-  }
-
-  return card
-}
-
-async function downloadSong(data) {
-  const song = {
-    id: data.id,
-    title: data.title,
-    artist: data.artist,
-    album: data.album,
-    artUrl: data.art,
-    audioUrl: data.preview,
-  }
-
-  try {
-    await addSong(song)
-    downloadedIds.add(data.id)
-    showToast(`✓ "${song.title}" ajouté à ta bibliothèque`)
-  } catch {
-    showToast('Erreur lors du téléchargement')
-  }
-}
-
-function playPreview(btn) {
-  const previewUrl = btn.dataset.preview
-  const title = btn.dataset.title
-  const artist = btn.dataset.artist
-  const art = btn.dataset.art
-
-  if (!previewUrl) return
-
-  if (currentAudio && currentAudio.src === previewUrl) {
-    if (currentAudio.paused) {
-      currentAudio.play()
-      btn.querySelector('i').className = 'fas fa-pause'
-      updateNowPlayingBar(true)
-    } else {
-      currentAudio.pause()
-      btn.querySelector('i').className = 'fas fa-play'
-      updateNowPlayingBar(false)
-    }
-    return
-  }
-
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio.currentTime = 0
-    if (currentPlayingCard) {
-      const prevBtn = currentPlayingCard.querySelector('.play-btn, .lib-play-btn')
-      if (prevBtn) prevBtn.querySelector('i').className = 'fas fa-play'
-    }
-  }
-
-  currentAudio = new Audio(previewUrl)
-  currentPlayingCard = btn.closest('.result-card, .lib-song')
-
-  currentAudio.play()
-  btn.querySelector('i').className = 'fas fa-pause'
-  showNowPlayingBar(title, artist, art)
-
-  currentAudio.addEventListener('ended', () => {
-    btn.querySelector('i').className = 'fas fa-play'
-    updateNowPlayingBar(false)
-  })
-}
-
-function showNowPlayingBar(title, artist, art) {
-  const bar = elements.nowPlayingBar
-  bar.classList.add('active')
-  bar.innerHTML = `
-    ${art ? `<img class="np-art" src="${art}" alt="${title}" />` : `<div class="np-art" style="background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)"><i class="fas fa-music"></i></div>`}
-    <div class="np-info">
-      <div class="np-title">${escapeHtml(title)}</div>
-      <div class="np-artist">${escapeHtml(artist)}</div>
-    </div>
-    <div class="np-controls">
-      <button class="np-play-btn" id="npPlayBtn"><i class="fas fa-pause"></i></button>
-      <button class="np-close-btn" id="npCloseBtn"><i class="fas fa-times"></i></button>
-    </div>
-  `
-
-  document.getElementById('npPlayBtn').addEventListener('click', () => {
-    if (currentAudio.paused) {
-      currentAudio.play()
-      document.getElementById('npPlayBtn').innerHTML = '<i class="fas fa-pause"></i>'
-      if (currentPlayingCard) {
-        const btn = currentPlayingCard.querySelector('.play-btn, .lib-play-btn')
-        if (btn) btn.querySelector('i').className = 'fas fa-pause'
-      }
-    } else {
-      currentAudio.pause()
-      document.getElementById('npPlayBtn').innerHTML = '<i class="fas fa-play"></i>'
-      if (currentPlayingCard) {
-        const btn = currentPlayingCard.querySelector('.play-btn, .lib-play-btn')
-        if (btn) btn.querySelector('i').className = 'fas fa-play'
-      }
-    }
-  })
-
-  document.getElementById('npCloseBtn').addEventListener('click', () => {
-    if (currentAudio) {
-      currentAudio.pause()
-      currentAudio.currentTime = 0
-    }
-    if (currentPlayingCard) {
-      const btn = currentPlayingCard.querySelector('.play-btn, .lib-play-btn')
-      if (btn) btn.querySelector('i').className = 'fas fa-play'
-    }
-    bar.classList.remove('active')
-  })
-}
-
-function updateNowPlayingBar(isPlaying) {
-  const playBtn = document.getElementById('npPlayBtn')
-  if (playBtn) playBtn.innerHTML = isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>'
-}
-
-function showEmpty(msg) {
-  elements.resultsGrid.innerHTML = `
-    <div class="empty-state" style="grid-column:1/-1">
-      <i class="fas fa-search"></i>
-      <p>${msg}</p>
-    </div>
-  `
-}
-
-function escapeHtml(str) {
-  if (!str) return ''
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
-}
-
-function initAds() {
-  const track = elements.adsTrack
-  track.innerHTML = ''
-  CODELUX_PROJECTS.forEach(p => {
-    const a = document.createElement('a')
-    a.className = 'ad-card'
-    a.href = p.path
-    a.target = '_top'
-    a.innerHTML = `
-      <span class="ad-icon">${p.icon}</span>
-      <div class="ad-info">
-        <div class="ad-title" style="color:${p.color}">${p.name}</div>
-        <div class="ad-desc">${p.desc}</div>
-      </div>
-      <span class="ad-go"><i class="fas fa-arrow-right"></i></span>
-    `
-    track.appendChild(a)
-  })
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault()
-  deferredPrompt = e
-  document.querySelectorAll('.install-header-btn, .install-hero-btn, #splashInstallBtn').forEach(el => {
-    if (el) el.style.display = 'flex'
-  })
-})
-
-window.addEventListener('appinstalled', () => {
-  deferredPrompt = null
-  document.querySelectorAll('.install-header-btn, .install-hero-btn, #splashInstallBtn').forEach(el => {
-    if (el) el.style.display = 'none'
-  })
-})
-
-async function installApp() {
-  if (!deferredPrompt) return
-  deferredPrompt.prompt()
-  const result = await deferredPrompt.userChoice
-  deferredPrompt = null
-  if (result.outcome === 'accepted') {
-    document.querySelectorAll('.install-header-btn, .install-hero-btn, #splashInstallBtn').forEach(el => {
-      if (el) el.style.display = 'none'
-    })
-  }
-}
-
-document.getElementById('installHeaderBtn')?.addEventListener('click', installApp)
-document.getElementById('installHeroBtn')?.addEventListener('click', installApp)
-document.getElementById('splashInstallBtn')?.addEventListener('click', installApp)
-
-elements.splashBtn.addEventListener('click', () => {
-  elements.splash.style.display = 'none'
-  elements.app.style.display = 'flex'
-  elements.searchInput.focus()
-})
-
-elements.searchForm.addEventListener('submit', (e) => {
-  e.preventDefault()
-  searchMusic(elements.searchInput.value, currentMedia)
-})
-
-elements.filterBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    elements.filterBtns.forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    currentMedia = btn.dataset.media
-    if (allResults.length > 0) {
-      renderResults()
-    } else if (currentQuery) {
-      searchMusic(currentQuery, currentMedia)
-    }
-  })
-})
-
-elements.viewBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    elements.viewBtns.forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    currentView = btn.dataset.view
-    const cards = elements.resultsGrid.querySelectorAll('.result-card')
-    if (cards.length > 0) {
-      elements.resultsGrid.className = `results-grid ${currentView}`
-      cards.forEach(c => c.classList.toggle('grid-layout', currentView === 'grid'))
-    }
-  })
-})
-
-updateOnlineStatus()
-initAds()
-loadLibrary()
+const CATEGORIES=[
+  {n:'Afrobeat',q:'Davido Wizkid Burna Boy',i:'🌍'},
+  {n:'Hip-Hop',q:'Drake Kendrick Lamar J Cole',i:'🎤'},
+  {n:'Pop',q:'Taylor Swift Ed Sheeran Dua Lipa',i:'🌟'},
+  {n:'RnB',q:'SZA Frank Ocean The Weeknd',i:'🎵'},
+  {n:'Reggae',q:'Bob Marley Koffee Chronixx',i:'🌴'},
+  {n:'Rock',q:'Queen Led Zeppelin Nirvana',i:'🎸'},
+  {n:'Jazz',q:'Miles Davis John Coltrane',i:'🎷'},
+  {n:'Electronic',q:'Daft Punk Calvin Harris David Guetta',i:'🎛️'},
+  {n:'Afro Pop',q:'Rema Ayra Starr CKay',i:'🔥'},
+  {n:'Gospel',q:'Sinach Mercy Chinwo Travis Greene',i:'🙌'},
+]
+
+const E=s=>document.getElementById(s)
+const $=E.bind(null)
+
+const _s=$('splash'),_a=$('app'),_si=$('splashInstall'),_sb=$('splashBtn')
+const _rg=$('resultsGrid'),_rc=$('resultsCount'),_rq=$('resultsQuery'),_es=$('emptyState'),_ld=$('loadingSpinner'),_of=$('offlineBanner')
+const _ca=$('categoriesGrid'),_tr=$('trendingGrid'),_ad=$('adsTrack'),_lib=$('libraryGrid'),_lb=$('libEmpty'),_bd=$('libBadge'),_lc=$('libCount'),_ns=$('nowPlayingBar'),_pr=$('progressFill')
+const _sr=$('headerSearch'),_sr2=$('pageSearch'),_sr3=$('heroSearch')
+
+let Q='',M='all',V='grid',A=null,PC=null,R=[],DP=null,ON=navigator.onLine,DI=new Set,PL=[],PI=-1
+
+window.addEventListener('online',()=>{ON=true;u()});window.addEventListener('offline',()=>{ON=false;u()})
+function u(){_of.style.display=ON?'none':'block'}
+
+function t(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2500)}
+
+async function loadLib(){const s=await getAllSongs();DI=new Set(s.map(s=>s.id));renderLib(s)}
+function renderLib(s){_bd.textContent=s.length;if(!s.length){_lib.innerHTML='';_lib.appendChild(_lb);_lc.textContent='';return}_lb.remove();_lib.innerHTML='';_lc.textContent=`${s.length} titre${s.length>1?'s':''} dans ta bibliothèque`
+s.forEach(s=>{const d=document.createElement('div');d.className='ls';d.innerHTML=`
+<img class="ca" src="${h(s.artUrl||'')}" alt="${h(s.title)}" onerror="this.style.display='none'"/>
+<div class="ci"><div class="ct">${h(s.title)}</div><div class="car">${h(s.artist||'')}</div><div class="lib-off"><i class="fas fa-check-circle"></i> Hors ligne</div></div>
+<div class="la"><button class="lb pb" data-p="${h(s.audioUrl)}" data-t="${h(s.title)}" data-ar="${h(s.artist||'')}" data-a="${h(s.artUrl||'')}"><i class="fas fa-play"></i></button>
+<button class="lb" data-i="${s.id}" style="background:rgba(239,68,68,.15);color:#ef4444"><i class="fas fa-trash"></i></button></div>`
+d.querySelector('.pb').onclick=e=>{e.stopPropagation();const b=e.currentTarget;const p=b.dataset.p;if(p)play({dataset:b.dataset,querySelector:()=>b.querySelector('i')})}
+d.querySelector('[data-i]').onclick=async e=>{e.stopPropagation();await removeSong(e.currentTarget.dataset.i);DI.delete(e.currentTarget.dataset.i);t('Titre supprimé');loadLib()}
+_lib.appendChild(d)})}
+
+function sp(p){document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.querySelector(`[data-p="${p}"]`).classList.add('active');document.getElementById('page-home').classList.toggle('active',p==='home');
+document.getElementById('page-search').classList.toggle('active',p==='search');document.getElementById('page-library').classList.toggle('active',p==='library');if(p==='library')loadLib()}
+
+async function search(q,m){if(!q.trim())return;Q=q.trim();M=m;_rg.innerHTML='';_es.style.display='none'
+if(!ON){_ld.style.display='none';const l=await searchLocalSongs(q);if(l.length){showEmpty(`Hors ligne : ${l.length} titre(s) dans ta bibliothèque`);l.forEach(s=>_rg.appendChild(cl(s)));_rc.textContent=l.length;_rq.textContent=q}else showEmpty('Hors ligne. Aucun résultat.')}
+else{_ld.style.display='block';const e=encodeURIComponent(q.trim());let d=null
+for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){const u=p?p+encodeURIComponent(`https://api.deezer.com/search?q=${e}&limit=50`):`https://api.deezer.com/search?q=${e}&limit=50`;d=await fetch2(u);if(d&&d.data)break}
+_ld.style.display='none';if(!d||!d.data||!d.data.length){if(M!=='all'){R=[];r();return}
+let d2=null;for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){const u=p?p+encodeURIComponent(`https://itunes.apple.com/search?term=${e}&media=music&entity=song,album,musicArtist&limit=50`):`https://itunes.apple.com/search?term=${e}&media=music&entity=song,album,musicArtist&limit=50`;d2=await fetch2(u);if(d2&&d2.results)break}
+if(!d2||!d2.results||!d2.results.length){showEmpty('Aucun résultat trouvé.');return}
+R=d2.results.map(i=>({id:String(i.trackId||i.collectionId||i.artistId||Math.random()),title:i.trackName||i.collectionName||i.artistName||'Inconnu',artist:i.artistName||'',album:i.collectionName||'',art:i.artworkUrl100||i.artworkUrl60||'',preview:i.previewUrl||'',link:i.trackViewUrl||i.collectionViewUrl||'',type:i.kind==='song'?'song':i.wrapperType==='collection'?'album':'artist',source:'itunes'}));r();return}
+R=d.data.map(i=>({id:String(i.id),title:i.title||'Inconnu',artist:i.artist&&i.artist.name||'',album:i.album&&i.album.title||'',art:i.album&&i.album.cover_medium||i.artist&&i.artist.picture_medium||'',preview:i.preview||'',link:i.link||'',type:'song',source:'deezer',duration:i.duration||0}));r()}}
+
+function cl(s){const d=document.createElement('div');d.className='card';d.innerHTML=`<img class="ca" src="${h(s.artUrl||'')}" onerror="this.style.display='none'"/>
+<div class="ci"><div class="ct">${h(s.title)}</div><div class="car">${h(s.artist||'')}</div><div class="lib-off"><i class="fas fa-check-circle"></i> Bibliothèque</div></div>
+<div class="ca2"><button class="cb pb" data-p="${h(s.audioUrl)}" data-t="${h(s.title)}" data-ar="${h(s.artist||'')}" data-a="${h(s.artUrl||'')}"><i class="fas fa-play"></i></button></div>`
+d.querySelector('.pb').onclick=e=>{e.stopPropagation();play({dataset:e.currentTarget.dataset,querySelector:()=>e.currentTarget.querySelector('i')})};return d}
+
+async function fetch2(u){try{const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)return null;const t=await r.text();try{return JSON.parse(t)}catch{return null}}catch{return null}}
+
+function r(){const f=R.filter(i=>{if(M==='music')return i.type==='song';if(M==='album')return i.type==='album';if(M==='musicArtist')return i.type==='artist';return true})
+_rc.textContent=f.length;_rq.textContent=Q;if(!f.length){showEmpty('Aucun résultat.');return}
+_es.style.display='none';_rg.innerHTML='';_rg.className=`results ${V}`;let ai=4
+f.forEach((i,idx)=>{if(idx&&idx%ai===0){const a=ia();if(a)_rg.appendChild(a);ai=Math.floor(Math.random()*4)+3}
+const d=document.createElement('div');d.className=`card ${V==='grid'?'g':''}`
+const isS=i.type==='song',isA=i.type==='album',isAr=i.type==='artist',did=DI.has(i.id)
+d.innerHTML=`
+${i.art?`<img class="ca" src="${i.art}" alt="${h(i.title)}" loading="lazy"/>`:`<div class="ca-p"><i class="fas fa-music"></i></div>`}
+<div class="ci"><div class="ct">${h(i.title)}</div>${i.artist?`<div class="car">${h(i.artist)}</div>`:''}${i.album?`<div class="cal">${h(i.album)}</div>`:''}${i.duration?`<div class="cal">${Math.floor(i.duration/60)}:${String(i.duration%60).padStart(2,'0')}</div>`:''}<span class="ctp">${isS?'SONG':isA?'ALBUM':isAr?'ARTISTE':''}</span></div>
+<div class="ca2">${i.preview&&isS?`<button class="cb pb" data-p="${i.preview}" data-t="${h(i.title)}" data-ar="${h(i.artist||'')}" data-a="${i.art}"><i class="fas fa-play"></i></button>`:''}
+${i.preview&&isS?`<button class="cb db ${did?'done':''}" data-id="${i.id}" data-p="${i.preview}" data-t="${h(i.title)}" data-ar="${h(i.artist||'')}" data-al="${h(i.album||'')}" data-a="${i.art}" title="${did?'Dans bibliothèque':'Télécharger'}" ${did?'disabled':''}><i class="fas ${did?'fa-check':'fa-download'}"></i></button>`:''}
+${i.link?`<a href="${i.link}" target="_blank" class="cb eb" title="Voir"><i class="fas fa-external-link-alt"></i></a>`:''}</div>`
+const pb=d.querySelector('.pb');if(pb)pb.onclick=e=>{e.stopPropagation();play({dataset:e.currentTarget.dataset,querySelector:()=>e.currentTarget.querySelector('i')})}
+const db=d.querySelector('.db:not(.done)');if(db)db.onclick=async e=>{e.stopPropagation();const b=e.currentTarget;b.innerHTML='<i class="fas fa-spinner fa-spin"></i>';await dl(b.dataset);b.innerHTML='<i class="fas fa-check"></i>';b.classList.add('done');b.disabled=true;b.title='Dans bibliothèque'}
+_rg.appendChild(d)})}
+
+function ia(){if(!P.length)return null;const p=P[Math.floor(Math.random()*P.length)];const a=document.createElement('a');a.className='ad-inline';a.href=p.p;a.target='_top'
+a.innerHTML=`<span class="ai">${p.i}</span><div class="ax"><div class="at" style="color:${p.c}">${p.n}</div><div class="ad">${p.d}</div></div><span class="ag">Voir <i class="fas fa-arrow-right"></i></span>`;return a}
+
+async function dl(d){const s={id:d.id,title:d.title,artist:d.ar,album:d.al,artUrl:d.a,audioUrl:d.p}
+try{await addSong(s);DI.add(d.id)}catch{}
+let audioData=null;for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){try{const u=p?p+encodeURIComponent(d.p):d.p;const r=await fetch(u,{mode:p?'cors':'cors'});if(r.ok){audioData=await r.blob();break}}catch{}}
+if(audioData&&audioData.size>1000){const name=`${d.ar||'Artiste'} - ${d.title||'Titre'}.mp3`;const url=URL.createObjectURL(audioData);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5e3);t(`✓ "${d.title}" téléchargé sur l'appareil`)}
+else{const name=`${d.ar||'Artiste'} - ${d.title||'Titre'}`;try{const r=await fetch(d.p);const b=await r.blob();const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=name+'.mp3';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),5e3);t(`✓ "${d.title}" téléchargé`)}catch{t(`✓ "${d.title}" ajouté à la bibliothèque (lecture offline)`)}}}
+
+function play(b){const p=b.dataset.p,ti=b.dataset.t,ar=b.dataset.ar,au=b.dataset.a;if(!p){if(b.querySelector)b.querySelector('i').className='fas fa-play';return}
+if(A&&A.src===p){if(A.paused){A.play();if(b.querySelector)b.querySelector('i').className='fas fa-pause';npU(true)}else{A.pause();if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false)}return}
+if(A){A.pause();A.currentTime=0;if(PC){const pb=PC.querySelector('.pb,.lb.pb');if(pb)pb.querySelector('i').className='fas fa-play'}}
+A=new Audio(p);PC=b.closest?.('.card,.ls')||null;A.play();if(b.querySelector)b.querySelector('i').className='fas fa-pause';npS(ti,ar,au)
+A.ontimeupdate=()=>{if(A&&_pr){const p=(A.currentTime/A.duration)*100||0;_pr.style.width=p+'%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent=fmt(A.currentTime);t[1].textContent=fmt(A.duration)}}};A.onended=()=>{if(b.querySelector)b.querySelector('i').className='fas fa-play';npU(false);_pr.style.width='0%';const t=_ns.querySelectorAll('.bar-time span');if(t.length>1){t[0].textContent='0:00';t[1].textContent='0:00'}}}
+
+function fmt(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0')}
+
+function npS(t,ar,a){_ns.classList.add('active');_ns.innerHTML=`
+<div class="bar-top">${a?`<img class="ba" src="${a}" alt="${h(t)}"/>`:'<div class="ba" style="background:var(--bg2);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg3)"><i class="fas fa-music"></i></div>'}
+<div class="bi"><div class="bt">${h(t)}</div><div class="ba2">${h(ar)}</div></div>
+<div class="bc"><button class="b-btn" id="npShuffleBtn"><i class="fas fa-random"></i></button><button class="b-btn" id="npPrevBtn"><i class="fas fa-step-backward"></i></button>
+<button class="b-btn primary" id="npPlayBtn"><i class="fas fa-pause"></i></button>
+<button class="b-btn" id="npNextBtn"><i class="fas fa-step-forward"></i></button><button class="b-btn" id="npCloseBtn"><i class="fas fa-times"></i></button></div></div>
+<div class="prog" id="progBar"><div class="prog-fill" id="progressFill" style="width:0%"></div></div>
+<div class="bar-time"><span id="npCurrent">0:00</span><span id="npDuration">0:00</span></div>`
+$('npPlayBtn').onclick=()=>{if(A.paused){A.play();$('npPlayBtn').innerHTML='<i class="fas fa-pause"></i>';if(PC){const b=PC.querySelector('.pb,.lb.pb');if(b)b.querySelector('i').className='fas fa-pause'}}else{A.pause();$('npPlayBtn').innerHTML='<i class="fas fa-play"></i>';if(PC){const b=PC.querySelector('.pb,.lb.pb');if(b)b.querySelector('i').className='fas fa-play'}}}
+$('npCloseBtn').onclick=()=>{if(A){A.pause();A.currentTime=0}if(PC){const b=PC.querySelector('.pb,.lb.pb');if(b)b.querySelector('i').className='fas fa-play'}_ns.classList.remove('active')}
+$('npPrevBtn').onclick=()=>{if(PL.length&&PI>0){PI--;playFromList(PL[PI])}}
+$('npNextBtn').onclick=()=>{if(PL.length&&PI<PL.length-1){PI++;playFromList(PL[PI])}}
+$('progBar').onclick=e=>{if(!A||!A.duration)return;const r=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-r.left)/r.width;A.currentTime=pct*A.duration}}
+
+function playFromList(item){if(!item)return;const fake={dataset:{p:item.preview,t:item.title,ar:item.artist||'',a:item.art||''},querySelector:()=>null,closest:()=>null};play(fake)}
+function npU(p){const b=$('npPlayBtn');if(b)b.innerHTML=p?'<i class="fas fa-pause"></i>':'<i class="fas fa-play"></i>'}
+
+function showEmpty(m){_rg.innerHTML=`<div class="empty"><i class="fas fa-search"></i><p>${m}</p></div>`}
+function h(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+function initAds(){_ad.innerHTML='';P.forEach(p=>{const a=document.createElement('a');a.href=p.p;a.target='_top'
+a.innerHTML=`<span class="ai" style="font-size:24px">${p.i}</span><div><div style="font-size:13px;font-weight:600;color:${p.c}">${p.n}</div><div style="font-size:11px;color:var(--fg3)">${p.d}</div></div>`;_ad.appendChild(a)})}
+
+function initCats(){_ca.innerHTML='';CATEGORIES.forEach(c=>{const d=document.createElement('div');d.className='cat'
+d.innerHTML=`<div class="ci">${c.i}</div><span>${c.n}</span>`;d.onclick=()=>{_sr.value=c.q;doSearch(_sr)};_ca.appendChild(d)})}
+
+async function initTrending(){_tr.innerHTML=`<div class="loading"><div class="spinner"></div><p>Chargement des tendances...</p></div>`
+let d=null;for(const p of['','https://api.allorigins.win/raw?url=','https://corsproxy.io/?url=']){const u=p?p+encodeURIComponent('https://api.deezer.com/chart/0/tracks?limit=10'):'https://api.deezer.com/chart/0/tracks?limit=10';d=await fetch2(u);if(d&&d.data)break}
+_tr.innerHTML='';if(!d||!d.data||!d.data.length){_tr.innerHTML='<div class="empty"><p>Impossible de charger les tendances</p></div>';return}
+d.data.forEach(i=>{const s={id:String(i.id),title:i.title||'Inconnu',artist:i.artist&&i.artist.name||'',album:i.album&&i.album.title||'',art:i.album&&i.album.cover_medium||'',preview:i.preview||'',type:'song',source:'deezer'}
+const c=document.createElement('div');c.className=`card ${V==='grid'?'g':''}`
+c.innerHTML=`<img class="ca" src="${s.art}" alt="${h(s.title)}" loading="lazy"/>
+<div class="ci"><div class="ct">${h(s.title)}</div><div class="car">${h(s.artist)}</div></div>
+<div class="ca2"><button class="cb pb" data-p="${s.preview}" data-t="${h(s.title)}" data-ar="${h(s.artist)}" data-a="${s.art}"><i class="fas fa-play"></i></button>
+<button class="cb db ${DI.has(s.id)?'done':''}" data-id="${s.id}" data-p="${s.preview}" data-t="${h(s.title)}" data-ar="${h(s.artist)}" data-al="${h(s.album)}" data-a="${s.art}" title="${DI.has(s.id)?'Dans bibliothèque':'Télécharger'}" ${DI.has(s.id)?'disabled':''}><i class="fas ${DI.has(s.id)?'fa-check':'fa-download'}"></i></button></div>`
+c.querySelector('.pb').onclick=e=>{e.stopPropagation();play({dataset:e.currentTarget.dataset,querySelector:()=>e.currentTarget.querySelector('i')})}
+const db=c.querySelector('.db:not(.done)');if(db)db.onclick=async e=>{e.stopPropagation();const b=e.currentTarget;b.innerHTML='<i class="fas fa-spinner fa-spin"></i>';await dl(b.dataset);b.innerHTML='<i class="fas fa-check"></i>';b.classList.add('done');b.disabled=true;b.title='Dans bibliothèque'}
+_tr.appendChild(c)})}
+
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DP=e;[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='flex'})})
+window.addEventListener('appinstalled',()=>{DP=null;[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='none'})})
+async function installApp(){if(!DP)return;DP.prompt();const r=await DP.userChoice;DP=null;if(r.outcome==='accepted'){[$('installHeaderBtn'),$('installHeroBtn'),_si].forEach(el=>{if(el)el.style.display='none'})}}
+$('installHeaderBtn')?.addEventListener('click',installApp);$('installHeroBtn')?.addEventListener('click',installApp);_si?.addEventListener('click',installApp)
+
+_sb.onclick=()=>{_s.style.display='none';_a.style.display='flex';setTimeout(()=>{if(_sr)_sr.focus()},300)}
+
+function doSearch(input){const v=input.value.trim();if(v){search(v,M);sp('search')}}
+$('headerSearchForm').addEventListener('submit',e=>{e.preventDefault();doSearch(_sr)})
+$('pageSearchBtn').addEventListener('click',()=>doSearch(_sr2));_sr2.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSearch(_sr2)}})
+$('heroSearchBtn').addEventListener('click',()=>doSearch(_sr3));_sr3.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doSearch(_sr3)}})
+
+document.querySelectorAll('.filters button').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.filters button').forEach(b=>b.classList.remove('active'));b.classList.add('active');M=b.dataset.m
+if(R.length)r();else if(Q)search(Q,M)}})
+
+document.querySelectorAll('.views button').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.views button').forEach(b=>b.classList.remove('active'));b.classList.add('active');V=b.dataset.v
+const c=_rg.querySelectorAll('.card');if(c.length){_rg.className=`results ${V}`;c.forEach(c=>c.classList.toggle('g',V==='grid'))}}})
+
+document.querySelectorAll('.nav button').forEach(b=>{b.onclick=()=>{sp(b.dataset.p)}})
+
+document.querySelectorAll('.cta button').forEach(b=>{b.onclick=()=>{const s=document.getElementById('pageSearch');if(s)s.focus();sp('search')}})
+
+u();initAds();initCats();initTrending();loadLib()
+
+document.addEventListener('contextmenu',e=>e.preventDefault())
+document.addEventListener('dragstart',e=>e.preventDefault())
+document.addEventListener('copy',e=>e.preventDefault())
+document.addEventListener('cut',e=>e.preventDefault())
+document.addEventListener('paste',e=>e.preventDefault())
+document.addEventListener('selectstart',e=>e.preventDefault())
+document.onkeydown=function(e){if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key.toUpperCase()))||(e.ctrlKey&&e.key==='u')){e.preventDefault();return false}}
+setInterval(()=>{const d=document;if(d.body.contentEditable==='true'||d.designMode==='on'){d.body.contentEditable='false';d.designMode='off'}},100)
+try{Object.defineProperty(document,'documentURI',{get:()=>location.href})}catch{}
+try{console.log('%c🚫 Inspection désactivée','font-size:24px;color:#a855f7');console.log=function(){};console.warn=function(){};console.error=function(){}}catch{}
